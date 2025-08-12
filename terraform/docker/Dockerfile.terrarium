@@ -96,6 +96,7 @@ ENV AGE_VERSION=1.2.1 \
     TERRAFORM_VERSION_DEPRECATED=1.4.7 \
     TERRAFORM_VERSION=1.12.2 \
     TFLINT_VERSION=0.58.1 \
+    TFSEC_VERSION=1.28.14 \
     YQ_VERSION=4.47.1 \
     ZOXIDE_VERSION=0.9.4
 
@@ -241,6 +242,13 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && unzip -qq /tmp/tflint.zip -d /usr/local/bin \
     && rm -f /tmp/tflint.zip \
     && tflint --version
+
+# tfsec
+RUN ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && curl -fsSLo /usr/local/bin/tfsec \
+    "https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-${ARCH}" \
+    && chmod +x /usr/local/bin/tfsec \
+    && tfsec --version
 
 # Packer
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
