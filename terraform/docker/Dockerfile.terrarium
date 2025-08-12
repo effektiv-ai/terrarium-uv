@@ -5,6 +5,7 @@ ARG RUBY_VERSION_DEPRECATED=3.2.2
 ARG BUNDLER_VERSION=2.7.1
 ARG BUNDLER_VERSION_DEPRECATED=2.4.22
 ARG GEM_HOME=/opt/bundle
+ARG BATS_CORE_VERSION=1.11.0
 
 # ================= Stage 0 — buildlang (compile on Rocky 9) =================
 FROM rockylinux:9 AS buildlang
@@ -66,6 +67,7 @@ LABEL maintainer="Erhard Wais <erhard.wais@boehringer-ingelheim.com>, Josef Hart
 ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT BUILDPLATFORM BUILDOS BUILDARCH BUILDVARIANT
 ARG PYTHON_VERSION
 ARG GEM_HOME
+ARG BATS_CORE_VERSION
 
 # Tool versions
 ENV AGE_VERSION=1.2.1 \
@@ -349,10 +351,15 @@ RUN RBENV_VERSION=${RUBY_VERSION} \
     bundle check
 RUN kitchen --version && cinc-auditor version
 
-# bats-core for tests
-RUN git clone --depth 1 --branch v1.11.0 https://github.com/bats-core/bats-core.git /opt/bats-core \
-    && /opt/bats-core/install.sh /usr/local \
-    && bats --version
+# bats-core for tests (idempotent)
+RUN set -eux; \
+    rm -rf /opt/bats-core; \
+    git clone --depth 1 --branch "v${BATS_CORE_VERSION}" \
+    https://github.com/bats-core/bats-core.git /opt/bats-core; \
+    /opt/bats-core/install.sh /usr/local; \
+    rm -rf /opt/bats-core; \
+    bats --version
+
 COPY tests /home/terrarium/tests
 
 WORKDIR $HOME
