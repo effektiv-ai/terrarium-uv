@@ -114,14 +114,14 @@ docker run --rm -it ghcr.io/nichtraunzer/terrarium:latest \
 
 ### What exactly gets checked?
 
-| Category        | Representative assertions (excerpt)                               |
-| --------------- | ----------------------------------------------------------------- |
-| **Core OS**     | Image reports _Rocky Linux 8_, `python --version` works           |
-| **AWS tooling** | `aws`, `sam`, `cdk` binaries present and runnable                 |
-| **Terraform**   | Required TF versions installed via **tenv**, `tflint` available   |
-| **Infra/Sec**   | `sops --version`, `age-keygen` creates a keyfile                  |
-| **Ruby stack**  | `ruby`, `bundler`, `kitchen` CLI present                          |
-| **Extras**      | `starship`, `yq`, `zoxide`, `go-task` print their version strings |
+| Category        | Representative assertions (excerpt)                                    |
+| --------------- | ---------------------------------------------------------------------- |
+| **Core OS**     | Image reports _Rocky Linux 8_, `python --version` works                |
+| **AWS tooling** | `aws`, `sam`, `cdk` binaries present and runnable                      |
+| **Terraform**   | Required TF versions installed via **tenv**, `tflint, tfsec` available |
+| **Infra/Sec**   | `sops --version`, `age-keygen` creates a keyfile                       |
+| **Ruby stack**  | `ruby`, `bundler`, `kitchen` CLI present                               |
+| **Extras**      | `starship`, `yq`, `zoxide`, `go-task` print their version strings      |
 
 These fast, deterministic checks give us confidence to publish multi‑arch images
 (linux/amd64 and linux/arm64) without manual verification.
