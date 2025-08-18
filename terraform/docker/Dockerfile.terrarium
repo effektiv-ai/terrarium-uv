@@ -1,15 +1,13 @@
 # --------- Global args used across stages ---------
 ARG PYTHON_VERSION=3.12.11
 ARG RUBY_VERSION=3.4.1
-ARG RUBY_VERSION_DEPRECATED=3.2.2
 ARG BUNDLER_VERSION=2.7.1
-ARG BUNDLER_VERSION_DEPRECATED=2.4.22
 ARG GEM_HOME=/opt/bundle
 ARG BATS_CORE_VERSION=1.11.0
 
 # ================= Stage 0 — buildlang (compile on Rocky 9) =================
 FROM rockylinux:9 AS buildlang
-ARG PYTHON_VERSION RUBY_VERSION RUBY_VERSION_DEPRECATED BUNDLER_VERSION BUNDLER_VERSION_DEPRECATED GEM_HOME
+ARG PYTHON_VERSION RUBY_VERSION BUNDLER_VERSION GEM_HOME
 
 ENV PYENV_ROOT=/opt/pyenv \
     RBENV_ROOT=/opt/rbenv \
@@ -42,14 +40,12 @@ RUN umask 0002 \
     && ${PYENV_ROOT}/bin/pyenv global  ${PYTHON_VERSION} \
     && python --version && pip --version
 
-# ---- rbenv & Rubies + Bundler ----
+# ---- rbenv & Ruby + Bundler (single supported version) ----
 RUN git clone https://github.com/rbenv/rbenv.git ${RBENV_ROOT} \
     && git clone https://github.com/rbenv/ruby-build.git ${RBENV_ROOT}/plugins/ruby-build \
     && ${RBENV_ROOT}/bin/rbenv install ${RUBY_VERSION} \
-    && ${RBENV_ROOT}/bin/rbenv install ${RUBY_VERSION_DEPRECATED} \
     && ${RBENV_ROOT}/bin/rbenv global ${RUBY_VERSION} \
-    && RBENV_VERSION=${RUBY_VERSION}            gem install bundler -v ${BUNDLER_VERSION} \
-    && RBENV_VERSION=${RUBY_VERSION_DEPRECATED} gem install bundler -v ${BUNDLER_VERSION_DEPRECATED}
+    && RBENV_VERSION=${RUBY_VERSION} gem install bundler -v ${BUNDLER_VERSION}
 
 # Install the repo Gemfile into /opt/bundle (no direct gem installs of kitchen/cinc!)
 COPY Gemfile Gemfile.lock /tmp/gems/
@@ -70,10 +66,9 @@ ARG PYTHON_VERSION
 ARG GEM_HOME
 ARG BATS_CORE_VERSION
 
-# Tool versions
+# Tool versions (deprecated pins removed)
 ENV AGE_VERSION=1.2.1 \
     AWS_CDK_VERSION=2.1024.0 \
-    BUNDLER_VERSION_DEPRECATED=2.4.22 \
     BUNDLER_VERSION=2.7.1 \
     CONSUL_VERSION=1.21.3 \
     GEM_HOME=/opt/bundle \
@@ -84,7 +79,6 @@ ENV AGE_VERSION=1.2.1 \
     PACKER_VERSION=1.14.1 \
     RBENV_ROOT=/opt/rbenv \
     RBENV_SHELL=bash \
-    RUBY_VERSION_DEPRECATED=3.2.2 \
     RUBY_VERSION=3.4.1 \
     SOPS_VERSION=3.10.2 \
     STARSHIP_VERSION=1.23.0 \
@@ -94,7 +88,6 @@ ENV AGE_VERSION=1.2.1 \
     TENV_VERSION=1.2.0 \
     TERRAFORM_CONFIG_INSPECT_VERSION=latest \
     TERRAFORM_DOCS_VERSION=v0.20.0 \
-    TERRAFORM_VERSION_DEPRECATED=1.4.7 \
     TERRAFORM_VERSION=1.12.2 \
     TFLINT_VERSION=0.58.1 \
     TFSEC_VERSION=1.28.14 \
@@ -103,7 +96,7 @@ ENV AGE_VERSION=1.2.1 \
 
 ENV PYENV_ROOT=/opt/pyenv
 
-# Stable PATH for login/non‑login shells
+# Stable PATH for login/non-login shells
 ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:/opt/rbenv/shims:/opt/rbenv/bin:/opt/node/bin:$PATH
 ENV PATH=$PATH:/opt/bundle/bin:/root/.local/bin:/home/terrarium/.local/bin
 ENV HOME=/home/terrarium
@@ -166,8 +159,6 @@ RUN set -eux; \
     bundle check || bundle install --jobs=6 --retry=3; \
     bundle clean --force
 
-
-
 # xorriso + its runtime libs (EPEL/UBI does not provide xorriso)
 COPY --from=buildlang /usr/bin/xorriso /usr/bin/xorriso
 COPY --from=buildlang /usr/lib64/libisoburn.so.* /usr/lib64/
@@ -175,14 +166,14 @@ COPY --from=buildlang /usr/lib64/libisofs.so.*  /usr/lib64/
 COPY --from=buildlang /usr/lib64/libburn.so.*   /usr/lib64/
 RUN /sbin/ldconfig || /usr/sbin/ldconfig || true
 
-# ─── uv – ultra‑fast dependency manager & Python launcher ───────────────────
+# ─── uv – ultra-fast dependency manager & Python launcher ───────────────────
 RUN fetch https://astral.sh/uv/install.sh | bash && uv --version
 
 # Configure PIP SSL validation (pyenv’s pip)
 RUN pip config set global.cert /etc/ssl/certs/ca-bundle.crt \
     && pip config list
 
-# ─── Python user‑level libraries via uv ─────────────────────────────────────
+# ─── Python user-level libraries via uv ─────────────────────────────────────
 COPY pyproject.toml /tmp/pyproject.toml
 COPY uv.lock       /tmp/uv.lock
 RUN uv sync --directory /tmp --no-managed-python --frozen
@@ -222,14 +213,12 @@ RUN TARGETARCH_SYNONYM_SHORT=$([[ "$TARGETARCH" == "amd64" ]] && echo "x64" || e
     && chown -R 1001:0 /opt/node && chmod +x /opt/node/bin/* \
     && node --version && cdk --version
 
-# Install tenv + Terraform versions
+# Install tenv + Terraform (single supported version)
 RUN TENV_ARCH=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
     && dnf -y install "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_${TENV_ARCH}.rpm" \
     && tenv tf install ${TERRAFORM_VERSION} \
-    && tenv tf install ${TERRAFORM_VERSION_DEPRECATED} \
     && tenv tf use ${TERRAFORM_VERSION} \
     && terraform -version \
-    && tenv tf list \
     && chown -R 1001:0 "${TENV_ROOT}" && chmod -R 2775 "${TENV_ROOT}"
 
 # Safe tenv profile: prefer update-path if available, otherwise init
@@ -278,7 +267,6 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && rm -f /tmp/terraform-config-inspect.tar.gz \
     && chmod 755 /usr/local/bin/terraform-config-inspect \
     && /usr/local/bin/terraform-config-inspect
-
 
 # Terraform Docs
 RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
@@ -336,6 +324,19 @@ RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" |
     && chmod +x /usr/local/bin/yq \
     && /usr/local/bin/yq --version
 
+# kubectl
+RUN curl -fsSLo /usr/local/bin/kubectl \
+    https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    && kubectl version --client=true
+
+# helm
+RUN TARGETARCH_SYNONYM_SHORT2=$([[ "$TARGETARCH" == "amd64" ]] && echo "amd64" || echo "arm64") \
+    && curl -fsSLo /tmp/helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH_SYNONYM_SHORT2}.tar.gz" \
+    && tar -zxvf /tmp/helm.tar.gz --strip-components=1 -C /usr/local/bin linux-${TARGETARCH_SYNONYM_SHORT2}/helm \
+    && rm -f /tmp/helm.tar.gz \
+    && helm version
+
 # Ownerships & dirs
 RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
     && mkdir -p ${GEM_HOME} && chmod 2770 ${GEM_HOME} \
@@ -343,8 +344,6 @@ RUN chown -R 1001:0 ${HOME} && chmod -R g+rw ${HOME} \
     && ls -lisa ${HOME} ${GEM_HOME}
 
 # ---- Kitchen & Cinc wrappers (MANDATORY) -----------------------------------
-# Use Bundler environment from /opt/terrarium-gems + /opt/bundle
-
 RUN install -d -m 0755 /usr/local/bin
 
 # kitchen wrapper
@@ -372,7 +371,7 @@ RUN RBENV_VERSION=${RUBY_VERSION} \
     bundle check
 RUN kitchen --version && cinc-auditor version
 
-# bats-core for tests (idempotent)
+# bats-core for tests (single install)
 RUN set -eux; \
     rm -rf /opt/bats-core; \
     git clone --depth 1 --branch "v${BATS_CORE_VERSION}" \
